@@ -38,4 +38,80 @@ sd(cleaned_mean20_df$time)
 ```
 \newpage
 
-## 2. Suppose that mean dealy between two calls is 7.05 minutes. Can you test this hypothesis using the availablae data? What is your conclusion? Do you see a difference when considering the original values and the preprocessed values?
+## 2. Suppose that mean delay between two calls is 7.05 minutes. Can you test this hypothesis using the available data? What is your conclusion? Do you see a difference when considering the original values and the preprocessed values?
+
+
+```{r}
+assumed_mean <- 7.05
+estimated_mean <- mean(cleaned_mean20_df$time)
+t.test(x = cleaned_mean20_df, mu = assumed_mean, conf.level = 0.95)
+```
+
+Assuming we want the 95% confidance interval, we reject the hypothesis of the mean delay being 7.05 minutes.
+
+Comparing to the unprocessed values:
+```{r}
+t.test(x = mean20_df, mu = assumed_mean, conf.level = 0.95)
+```
+
+While for the unprocessed data the true mean is not 7.05, it is clear that there is a >95% probability that our hypothesis holds. This is because the unprocessed data includes a negative value (I'd assume NA's are ignored), which increases the total range of values immensly.
+
+\newpage
+
+## 3. For Mary, the delay cannot be smaller than 7.05 minutes. Thus the only credible alternative hypothesis must take account of this (well-known) fact. How can you test Mary’s hypothesis?
+
+We can use a one-sided t-test for this:
+
+```{r}
+t.test(x = cleaned_mean20_df, alternative = "g", mu = assumed_mean, conf.level = 0.95)
+```
+So for the processed data, this hypothesis holds in at least 95% of the cases.
+
+```{r}
+t.test(x = mean20_df, alternative = "g", mu = assumed_mean, conf.level = 0.95)
+```
+For the unprocessed variant this also holds true as the range of the 95% confidence interval is larger.
+
+\newpage
+
+## 4. Define a function secondMax(x), where x is a vector, returning the second largest value contained in x. If x is not a vector, return an error message. Test your implementation in different cases using the Mean20 dataset. 
+
+First we define the function and check if x is a vector
+```{r}
+secondMax <- function(x)
+{
+	if (!is.vector(x))	{
+		return("Input x is not a numeric vector!")
+	}
+	# need at least 2 values
+	if (length(x) <= 1) 	{
+		return("x must contain at least 2 values!")
+	}
+	if (!is.numeric(x)) {
+		return("Vector components must be numeric!")
+	}
+	
+	# Remove largest value, such that the second largest value is now the largest
+	x_without_max <- x[-which(x == max(x))]
+	
+	return(max(x_without_max))
+}
+
+```
+
+
+Testing the implementation:
+```{r}
+secondMax(cleaned_mean20_df$time)
+secondMax(c("1","2","4")) # should fail
+secondMax(c("yes","this","is","patrick")) # should fail
+secondMax(cleaned_mean20_df) # should fail
+secondMax(NA) # should fail
+secondMax(c(NA, NA, NA)) # should fail
+```
+
+\newpage
+
+## 5. Define a function mySummary(x), where x is a vector composed by the mean, the median, the standard deviation, the minimum and the maximum values (in this order). Test your implementation in different cases using the Mean20 dataset 
+
+TODO
