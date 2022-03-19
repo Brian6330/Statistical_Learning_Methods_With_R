@@ -78,8 +78,7 @@ For the unprocessed variant this also holds true as the range of the 95% confide
 
 First we define the function and check if x is a vector
 ```{r}
-secondMax <- function(x)
-{
+secondMax <- function(x) {
 	if (!is.vector(x))	{
 		return("Input x is not a numeric vector!")
 	}
@@ -92,7 +91,7 @@ secondMax <- function(x)
 	}
 	
 	# Remove largest value, such that the second largest value is now the largest
-	x_without_max <- x[-which(x == max(x))]
+	x_without_max = x[-which(x == max(x))]
 	
 	return(max(x_without_max))
 }
@@ -103,6 +102,7 @@ secondMax <- function(x)
 Testing the implementation:
 ```{r}
 secondMax(cleaned_mean20_df$time)
+secondMax(runif(n = 100, min = 0, max = 372)) # random values from 0 to 372
 secondMax(c("1","2","4")) # should fail
 secondMax(c("yes","this","is","patrick")) # should fail
 secondMax(cleaned_mean20_df) # should fail
@@ -114,4 +114,38 @@ secondMax(c(NA, NA, NA)) # should fail
 
 ## 5. Define a function mySummary(x), where x is a vector composed by the mean, the median, the standard deviation, the minimum and the maximum values (in this order). Test your implementation in different cases using the Mean20 dataset 
 
-TODO
+```{r}
+mySummary <- function(x, remove_na = TRUE) {
+	if (!is.vector(x))	{
+		return("Input x is not a numeric vector!")
+	}
+	# need at least 2 values
+	if (length(x) <= 1) 	{
+		return("x must contain at least 2 values!")
+	}
+	if (!is.numeric(x)) {
+		return("Vector components must be numeric!")
+	}
+	if (remove_na) {
+		na_values = which(is.na(x))
+		if (length(na_values) > 0) {
+			x <- x[-isna]
+		}
+	}
+	
+	return(c(mean = mean(x), median = median(x), stdev = sd(x), min = min(x), max = max(x)))
+}
+```
+
+
+Testing with similar cases as before: 
+```{r}
+mySummary(cleaned_mean20_df$time)
+mySummary(runif(n = 100, min = 0, max = 372)) # random values from 0 to 372
+mySummary(c("1","2","4")) # should fail
+mySummary(c("yes","this","is","patrick")) # should fail
+mySummary(cleaned_mean20_df) # should fail
+mySummary(NA) # should fail
+mySummary(c(NA, NA, NA)) # should fail
+```
+
