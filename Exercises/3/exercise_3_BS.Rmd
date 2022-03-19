@@ -1,0 +1,41 @@
+---
+title: 'Exercise #3'
+author: "Brian Schweigler; 16-102-071"
+date: "23/03/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: t-test and R programming 
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Preliminaries
+Loading the mean dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+mean20_df = read.csv("Mean20.txt", header = TRUE, comment.char = "#")
+```
+
+Handle the outliers:
+
+-   Remove NAs
+
+-   Remove illogical values (<= 0)
+
+
+```{r}
+temp_mean20_df <- mean20_df
+temp_mean20_df[temp_mean20_df <= 0] <- NA
+cleaned_mean20_df <- na.omit(temp_mean20_df)
+summary(cleaned_mean20_df)
+```
+```{r}
+sd(cleaned_mean20_df$time)
+```
+\newpage
+
+## 2. Suppose that mean dealy between two calls is 7.05 minutes. Can you test this hypothesis using the availablae data? What is your conclusion? Do you see a difference when considering the original values and the preprocessed values?
