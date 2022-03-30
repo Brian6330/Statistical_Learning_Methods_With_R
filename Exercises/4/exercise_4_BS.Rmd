@@ -20,7 +20,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 education_df = read.csv("EducationBis.txt", header = TRUE, sep = "\t", comment.char = "#")
 ```
 
-Check for outliers:
+Check for outliers / erronous data input:
 
 
 ```{r}
@@ -38,106 +38,181 @@ No outliers directly visible, Gender is encoded as binary, years of education an
 
 \newpage
 
-## 1. Suppose that mean delay between two calls is 7.05 minutes. Can you test this hypothesis using the available data? What is your conclusion? Do you see a difference when considering the original values and the preprocessed values?
+## 1. Build two linear models, one for men and one for women, and use the Education variable to explain the Wage. Describe the results of the output provided by the function lm() for both models.
 
+
+Splitting by gender, then creating the linear model:
 
 ```{r}
-assumed_mean <- 7.05
-estimated_mean <- mean(cleaned_mean20_df$time)
-t.test(x = cleaned_mean20_df, mu = assumed_mean, conf.level = 0.95)
+female = education_df[which(education_df$Gender == "female"),]
+male = education_df[which(education_df$Gender == "male"),]
+lm_male = lm(male$Wage ~ male$Education)
+lm_female = lm(female$Wage ~ female$Education)
+
+summary(lm_female)
+summary(lm_male)
 ```
 
-Assuming we want the 95% confidance interval, we reject the hypothesis of the mean delay being 7.05 minutes.
+The `female$Education` has a slope of 397.54, while `male$Education` of 398.25, so both are slightly below 400.
+This also directly answers question 2, yes the slopes are significantly different from 0.
 
-Comparing to the unprocessed values:
-```{r}
-t.test(x = mean20_df, mu = assumed_mean, conf.level = 0.95)
-```
-
-While for the unprocessed data the true mean is not 7.05, it is clear that there is a >95% probability that our hypothesis holds. This is because the unprocessed data includes a negative value (I'd assume NA's are ignored), which increases the total range of values immensly.
+Furthermore, the y-intersect is at -563.61 for females and 24.20 for males
 
 \newpage
 
-## 3. For Mary, the delay cannot be smaller than 7.05 minutes. Thus the only credible alternative hypothesis must take account of this (well-known) fact. How can you test Mary’s hypothesis?
+## 2. Are the two slopes significantly different from 0?
 
-We can use a one-sided t-test for this:
-
+As seen in question 1, yes they are siginicantly different from 400.
+But, as a treat, have the Residuals vs. fitted and Normal Q-Q plot for both linear models below:
 ```{r}
-t.test(x = cleaned_mean20_df, alternative = "g", mu = assumed_mean, conf.level = 0.95)
-```
-So for the processed data, this hypothesis holds in at least 95% of the cases.
+plot(lm_female, which = c(1), main = "Residuals vs. Fitted for Females", caption = "")
+plot(lm_male, which = c(1), main = "Residuals vs. Fitted for Males", caption = "")
 
-```{r}
-t.test(x = mean20_df, alternative = "g", mu = assumed_mean, conf.level = 0.95)
-```
-For the unprocessed variant this also holds true as the range of the 95% confidence interval is larger.
-
-\newpage
-
-## 4. Define a function secondMax(x), where x is a vector, returning the second largest value contained in x. If x is not a vector, return an error message. Test your implementation in different cases using the Mean20 dataset. 
-
-First we define the function and check if x is a vector
-```{r}
-secondMax <- function(x)
-{
-	if (!is.vector(x))	{
-		return("Input x is not a numeric vector!")
-	}
-	# need at least 2 values
-	if (length(x) <= 1) 	{
-		return("x must contain at least 2 values!")
-	}
-	if (!is.numeric(x)) {
-		return("Vector components must be numeric!")
-	}
-	
-	# Remove largest value, such that the second largest value is now the largest
-	x_without_max <- x[-which(x == max(x))]
-	
-	return(max(x_without_max))
-}
-
-```
-
-
-Testing the implementation:
-```{r}
-secondMax(cleaned_mean20_df$time)
-secondMax(c("1","2","4")) # should fail
-secondMax(c("yes","this","is","patrick")) # should fail
-secondMax(cleaned_mean20_df) # should fail
-secondMax(NA) # should fail
-secondMax(c(NA, NA, NA)) # should fail
+plot(lm_female, which = c(2), main = "Normal Q-Q plot for Females", caption = "")
+plot(lm_male, which = c(2), main = "Normal Q-Q plot for Males", caption = "")
 ```
 
 \newpage
 
-## xyz
+## 3. Can you build a simple lm() model using all the predictors? Describe this unified model.
 
-## Preliminaries
+```{r}
+lm_education = lm(education_df$Wage ~ education_df$ID + education_df$Education + education_df$Gender)
+summary(lm_education)
+```
+
+
+As we would expect, ID does not explain the wage at all, as its estimate is close to 0. 
+The years of Education and the Gender are better indicators.
+
+
+\newpage
+
+## Preliminaries Computers Dataset
 Loading the computers dataset:
 
 ```{r}
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-computers_df = read.csv("Computers.txt", header = TRUE, sep =  , comment.char = "#")
+computers_df = read.csv("Computers.txt", header = TRUE, sep = "\t"  , comment.char = "#")
 ```
 
-Check for outliers:
+Check for outliers / erronous data input:
+```{r}
+unique(computers_df$vendor)
+```
+30 vendors as specified in the accompanying PDF.
+
+We will not be looking at the models, are there are too many different unique ones.
+
+```{r}
+range(computers_df$MYCT)
+range(computers_df$MYCT[(min(computers_df$MYCT) < computers_df$MYCT) 
+												& (computers_df$MYCT < max(computers_df$MYCT))
+												])
+
+range(computers_df$MMIN)
+range(computers_df$MMIN[(min(computers_df$MMIN) < computers_df$MMIN) 
+												& (computers_df$MMIN < max(computers_df$MMIN))
+												])
+
+range(computers_df$MMAX)
+range(computers_df$MMAX[(min(computers_df$MMAX) < computers_df$MMAX) 
+												& (computers_df$MMAX < max(computers_df$MMAX))
+												])
+
+range(computers_df$CACH)
+range(computers_df$CACH[(min(computers_df$CACH) < computers_df$CACH) 
+												& (computers_df$CACH < max(computers_df$CACH))
+												])
+
+range(computers_df$CGMIN)
+range(computers_df$CGMIN[(min(computers_df$CGMIN) < computers_df$CGMIN) 
+												& (computers_df$CGMIN < max(computers_df$CGMIN))
+												])
+
+range(computers_df$CHMAX)
+range(computers_df$CHMAX[(min(computers_df$CHMAX) < computers_df$CHMAX) 
+												& (computers_df$CHMAX < max(computers_df$CHMAX))
+												])
+
+range(computers_df$PRP)
+range(computers_df$PRP[(min(computers_df$PRP) < computers_df$PRP) 
+												& (computers_df$PRP < max(computers_df$PRP))
+												])
+
+range(computers_df$ERP)
+range(computers_df$ERP[(min(computers_df$ERP) < computers_df$ERP) 
+												& (computers_df$ERP < max(computers_df$ERP))
+												])
+```
+
+The second largest and second smallest values seem to often be "near" (as far as can be guessed) to the max and min value. More testing would have to be done, but it seems that no "major outliers" sneaked into the data.
+This was to be expected as the data has already been used in other papers.
+
+\newpage
+
+## 4. Check the different variables (predictor) you have to predict PRP. In your opinion, which are the variables that cannot be used to explain the system performance?
+
+Variables such as the model or vendor are not applicable to predict performance in a linear model. 
+ERP should not be used, as it is the result of a linear prediction of PRP (based on the available predictor values).
+
+
+\newpage
+
+## 5. You’re allowed to use only a single variable (predictor) to predict the value of PRP. Which one would you use? Does your model explain something? What is the confidence interval around the slope?
+
+We will be using corrplot library for plotting the correlations.
+```{r}
+library(corrplot)
+```
+
+```{r}
+computers_df_cor = cor(
+  subset(
+  	# to remove the non-numeric fields (model & vendor)
+    computers_df[sapply(computers_df, is.numeric)],
+    # Removing the ERP field that should not be used
+    select = -c(ERP),
+  )
+)
+corrplot(computers_df_cor)
+```
+
+MMAX is likely to be a good linear predictor for the PRP value, with MMIN as the alternative.
+This is to be expected, that if The Maximum Main Memory in Kilobytes is of interest, then so is the minimum main memory in kilobytes. 
+
+```{r}
+computers_df_lm_MMAX = lm(PRP ~ MMAX, data = computers_df)
+summary(computers_df_lm_MMAX)
+confint(computers_df_lm_MMAX, 'MMAX', level = 0.95)
+
+computers_df_lm_MMIN = lm(PRP ~ MMIN, data = computers_df)
+summary(computers_df_lm_MMIN)
+confint(computers_df_lm_MMIN, 'MMIN', level = 0.95)
+```
+
+MMAX seems better suited than MMIN, as can be seen with the Coefficients.
+It might be that MMIN might change slightly slower than MMAX for compatibility reasons.
+MMAX will likely always be "cutting-edge". 
+
+The confidence-interval around the slope is 0.011-0.013 for MMAX and 0.029-0.36 for MMIN.
+
+\newpage
+
+
+## 6. Visualize graphically the (linear) relationship that you found.
 
 
 ```{r}
-range(education_df$Wage)
+plot(computers_df_lm_MMAX, which = c(1), main = "Residuals vs. Fitted for MMAX", caption = "")
+plot(computers_df_lm_MMIN, which = c(1), main = "Residuals vs. Fitted for MMIN", caption = "")
 ```
+The derivation of the points from the residual = 0 line is smallest for small values, of which there are more for MMIN and MMAX.
+Of note is that the mean residuals for MMAX are consistently below the residual = 0 line after around 150,
+while for MMIN we have larger outliers and the mean even goes above the line for higher MMIN values.
 
-```{r}
-range(education_df$Education)
-```
-
-```{r}
-unique(education_df$Gender)
-```
-No outliers directly visible, Gender is encoded as binary, years of education and wage range seem reasonable without additional information.
+All this tells us, is that we have a lot more data for smaller MMIN and MMAX values and that MMAX correlates more strongly with PRP than MMIN. It is likely that after a certain threshold (of technological innovation), the MMIN did not need to increase to be in line with MMAX anymore, which is why MMAX is the better predictor than MMIN.
 
 \newpage
 
@@ -147,23 +222,37 @@ Loading the cars dataset:
 ```{r}
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-cars_df = read.csv("EducationBis.txt", header = TRUE, sep = " ", comment.char = "#")
+cars_df = read.csv("Cars.txt", header = TRUE, sep = "\t", comment.char = "#")
 ```
 
 Check for outliers:
 
 
 ```{r}
-range(education_df$Wage)
+range(cars_df$mpg)
+range(cars_df$mpg[(min(cars_df$mpg) < cars_df$mpg) 
+												& (cars_df$mpg < max(cars_df$mpg))
+												])
 ```
 
 ```{r}
-range(education_df$Education)
+unique(cars_df$cylinders)
 ```
 
 ```{r}
-unique(education_df$Gender)
+range(cars_df$displacement)
+range(cars_df$displacement[(min(cars_df$displacement) < cars_df$displacement) 
+												& (cars_df$displacement < max(cars_df$displacement))
+												])
 ```
+```{r}
+range(cars_df$displacement)
+range(cars_df$displacement[(min(cars_df$displacement) < cars_df$displacement) 
+												& (cars_df$displacement < max(cars_df$displacement))
+												])
+```
+
+
 No outliers directly visible, Gender is encoded as binary, years of education and wage range seem reasonable without additional information.
 
 \newpage
