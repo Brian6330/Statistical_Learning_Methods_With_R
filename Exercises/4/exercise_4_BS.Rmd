@@ -246,13 +246,92 @@ range(cars_df$displacement[(min(cars_df$displacement) < cars_df$displacement)
 												])
 ```
 ```{r}
-range(cars_df$displacement)
-range(cars_df$displacement[(min(cars_df$displacement) < cars_df$displacement) 
-												& (cars_df$displacement < max(cars_df$displacement))
-												])
+unique(cars_df$horsepower)
+```
+There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding row.
+These are also mentioned in Cars.pdf.
+```{r}
+
+cars_df_cleaned <- cars_df[!is.na(cars_df$horsepower),]
 ```
 
 
-No outliers directly visible, Gender is encoded as binary, years of education and wage range seem reasonable without additional information.
+```{r}
+range(cars_df_cleaned$weight)
+range(cars_df_cleaned$weight[(min(cars_df_cleaned$weight) < cars_df_cleaned$weight) 
+												& (cars_df_cleaned$weight < max(cars_df_cleaned$weight))
+												])
+```
+```{r}
+range(cars_df_cleaned$acceleration)
+range(cars_df_cleaned$acceleration[(min(cars_df_cleaned$acceleration) < cars_df_cleaned$acceleration) 
+												& (cars_df_cleaned$acceleration < max(cars_df_cleaned$acceleration))
+												])
+```
+
+```{r}
+range(cars_df_cleaned$year)
+```
+
+```{r}
+range(cars_df_cleaned$origin)
+```
+Origin is Ternary.
+
+Names are a list of names, thus no need to check it.
+
+Besides the NAs found for horspower, the data seems to be good (without additional information.)
 
 \newpage
+
+## 7. Check the different variables (predictor) you have to predict mpg. In your opinion, which are the variables that cannot be used to explain the system performance?
+
+Obviously name can't be used to explain the mpg, origin is unlikely to be of impact too.
+Furthermore, the year might corrolate with mpg if the efficiency increased over time, but is not a direct predictor for mpg. 
+
+
+\newpage
+
+## 8. You’re allowed to use only a single variable (predictor) to predict the value of mpg. Which one would you use? Does your model explain something? What is the confidence interval around the slope?
+
+We will be using corrplot library for plotting the correlations.
+```{r}
+library(corrplot)
+```
+
+```{r}
+cars_df_cor = cor(
+  subset(
+  	# to remove the non-numeric fields
+    cars_df_cleaned[sapply(cars_df_cleaned, is.numeric)],
+  )
+)
+corrplot(cars_df_cor)
+```
+
+As expected origin is not useful.
+Best seems to be weight, which is to be expected as the more weight needs to be propelled forward, the higher the energy required. Thus we will be using weight.
+
+On a side-note, it can be said that weight, horsepower, displacements, and cylinders all relate to each other. 
+If the weight increases, so thus the horsepower of the engine, the number of cylinders and the displacement.
+
+```{r}
+cars_df_cleaned_lm_weight = lm(mpg ~ weight, data = cars_df_cleaned)
+summary(cars_df_cleaned_lm_weight)
+confint(cars_df_cleaned_lm_weight, 'weight', level = 0.95)
+
+```
+
+As we have a negative correlation (if weight increases, mpg decreases) the confidence-interval aroudn the slope is the negative values -0.008 - -0.007.
+
+\newpage
+
+## 9. Visualize graphically the (linear) relationship that you found
+
+```{r}
+plot(cars_df_cleaned_lm_weight, which = c(1), main = "Residuals vs. Fitted for Weight", caption = "")
+```
+Of interest is that higher values tend to have more outliers in terms of residuals.
+Do note that overall the residual = 0 line, seems to be quite fitting. 
+
+I would be wary to use the model as a predictor for smaller values, as we have a lack of data points for this range.
