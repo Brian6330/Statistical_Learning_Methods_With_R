@@ -20,7 +20,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 education_df = read.csv("EducationBis.txt", header = TRUE, sep = "\t", comment.char = "#")
 ```
 
-Check for outliers / erronous data input:
+Check for outliers / erronous data input and get to know the data:
 
 
 ```{r}
@@ -62,7 +62,7 @@ Furthermore, the y-intersect is at -563.61 for females and 24.20 for males
 
 ## 2. Are the two slopes significantly different from 0?
 
-As seen in question 1, yes they are siginicantly different from 400.
+As seen in question 1, yes they are siginicantly different from 0.
 But, as a treat, have the Residuals vs. fitted and Normal Q-Q plot for both linear models below:
 ```{r}
 plot(lm_female, which = c(1), main = "Residuals vs. Fitted for Females", caption = "")
@@ -97,7 +97,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 computers_df = read.csv("Computers.txt", header = TRUE, sep = "\t"  , comment.char = "#")
 ```
 
-Check for outliers / erronous data input:
+Check for outliers / erronous data input and get to know the data:
 ```{r}
 unique(computers_df$vendor)
 ```
@@ -147,7 +147,7 @@ range(computers_df$ERP[(min(computers_df$ERP) < computers_df$ERP)
 												])
 ```
 
-The second largest and second smallest values seem to often be "near" (as far as can be guessed) to the max and min value. More testing would have to be done, but it seems that no "major outliers" sneaked into the data.
+The second largest and second smallest values seem to often be "near" (as far as can be guessed) to the max and min value. More testing would have to be done, but it seems that no "major outliers" (of erronous data) sneaked into the data.
 This was to be expected as the data has already been used in other papers.
 
 \newpage
@@ -225,7 +225,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 cars_df = read.csv("Cars.txt", header = TRUE, sep = "\t", comment.char = "#")
 ```
 
-Check for outliers:
+Check for outliers and get to know the data:
 
 
 ```{r}
@@ -248,7 +248,7 @@ range(cars_df$displacement[(min(cars_df$displacement) < cars_df$displacement)
 ```{r}
 unique(cars_df$horsepower)
 ```
-There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding row.
+There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding rows.
 These are also mentioned in Cars.pdf.
 ```{r}
 
@@ -313,7 +313,7 @@ As expected origin is not useful.
 Best seems to be weight, which is to be expected as the more weight needs to be propelled forward, the higher the energy required. Thus we will be using weight.
 
 On a side-note, it can be said that weight, horsepower, displacements, and cylinders all relate to each other. 
-If the weight increases, so thus the horsepower of the engine, the number of cylinders and the displacement.
+If the weight increases, so does the horsepower of the engine, the number of cylinders and the displacement.
 
 ```{r}
 cars_df_cleaned_lm_weight = lm(mpg ~ weight, data = cars_df_cleaned)
@@ -331,7 +331,7 @@ As we have a negative correlation (if weight increases, mpg decreases) the confi
 ```{r}
 plot(cars_df_cleaned_lm_weight, which = c(1), main = "Residuals vs. Fitted for Weight", caption = "")
 ```
-Of interest is that higher values tend to have more outliers in terms of residuals.
+Of interest is that higher values tend to have more outliers (residuals).
 Do note that overall the residual = 0 line, seems to be quite fitting. 
 
 I would be wary to use the model as a predictor for smaller values, as we have a lack of data points for this range.
