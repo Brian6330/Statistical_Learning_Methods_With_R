@@ -17,6 +17,7 @@ Load required libraries
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(FNN)
 ```
 
 Loading the education dataset:
@@ -149,5 +150,110 @@ Do note that the variance is quite high, but on both sides.
 It seems a "good enough" approach to use the weight to get the mpg of the vehicles. 
 
 
+\newpage
+
+## 5. Write a R function to compute the distance between two observations. As a parameter, we can ask to compute the Euclidean distance (by default) or the L1-norm.
+
+So, a function either L2 (euclidean) or L1 norm:
+```{r}
+dist_L1_L2 = function(a, b, L2 = TRUE) {
+
+  if (!is.vector(a) || !is.vector(b)) {
+    return("a and b must be vectors!")
+  }
+  
+  if (length(a) != length(b)) {
+    return("a and b must be of equal length!")
+  }
+  
+  if (L2) {
+    diff = abs(a - b)**2
+    return(sqrt(sum(diff)))
+  } else {
+  	  diff = abs(a - b)
+  		return(sum(diff)) 
+  }
+}
+```
 
 \newpage
+
+## 6. Consider both the Computers and Cars datasets. In Exercise #4 and in the previous questions of Exercise #5, you have proposed a regression model based on a single linear predictor or by taking in account many predictors. As a new regression model, apply the knn algorithm. You’re free to select the value of k, but you have to justify your choice over other possible values.
+
+TODO COMPARE THIS WITH LECTURES!
+
+We will be using the FNN package loaded in the preliminaries section.
+First, we will exclude vendor, model and ERP in the dataframe:
+```{r}
+computers_df_short = computers_df[, 3:9]
+```
+This needs to be normalized:
+```{r}
+normalize = function(x) {
+  (x - min(x)) / 
+		(max(x) - min(x))
+}
+```
+
+```{r}
+computers_df_norm = as.data.frame(lapply(computers_df_short, normalize))
+```
+
+Variables required for FNN: 
+```{r}
+n = nrow(computers_df_norm)
+train = sample(1:n, size = n/2)
+test = (1:n)[-train]
+```
+Remove PRP from training data: 
+```{r}
+computers_train = computers_df_norm[train, -7]
+computers_train_labels = computers_df_norm[test, 7]
+computers_test = computers_df_norm[test, -7]
+computers_test_labels = computers_df_norm[test, 7]
+```
+Now to find k with lowest Mean Squared Error
+```{r}
+k_best = 0
+mse_best = 10000 
+for (k in 1:10) { # TODO Change to mess around as you want :)
+  computers_knn =  knn.reg(
+    train=computers_train, 
+    test=computers_test,
+    y = computers_train_labels,
+    k = k
+  )
+  
+  mse = mean((computers_knn$pred - computers_test_labels)^2)
+  
+  if (mse < mse_best) {
+    mse_best = mse
+    k_best = k
+  }
+}
+computers_knn =  knn.reg(
+  train=computers_train, 
+  test=computers_test,
+  y = computers_train_labels,
+  k = k_best
+)
+mse = mean((computers_knn$pred - computers_test_labels)^2)
+print(sprintf("Best k = %d with MSE = %f", k_best, mse))
+```
+Plot this information:
+# And plot it.
+
+```{r}
+computers_predicted = data.frame(Prediction = computers_knn$pred, Actual = computers_train_labels)
+ggplot(computers_predicted, aes(x = Actual, y = Prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red")
+```
+With such small MSE, the random train/test split will lead to multiple runs having different k values.
+k = 69 is the best with MSE 0.018, but k = 8 has MSE 0.022, which a performance improvement with minimal MSE loss.
+So we could use 8 here.
+
+\newpage
+
+## Same for the cars dataset
+
