@@ -1,0 +1,186 @@
+---
+title: 'Exercise #5'
+author: "Brian Schweigler; 16-102-071"
+date: "15/04/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Multiple Regression and k-NN with R
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Preliminaries
+Loading the education dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+education_df = read.csv("EducationBis.txt", header = TRUE, sep = "\t", comment.char = "#")
+```
+
+The data has already been modified and removed of outliers. 
+
+
+Loading the computers dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+computers_df = read.csv("Computers.txt", header = TRUE, sep = "\t"  , comment.char = "#")
+```
+
+As we know from exercise 4, Computers.txt has no outliers discernible (without additional information). 
+
+Loading the cars dataset and cleaning NAs:
+
+Loading the cars dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+cars_df = read.csv("Cars.txt", header = TRUE, sep = "\t", comment.char = "#")
+```
+There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding rows.
+These are also mentioned in Cars.pdf.
+```{r}
+cars_df_cleaned <- cars_df[!is.na(cars_df$horsepower),]
+```
+Besides the NAs found for horspower, the data seems to be good (without additional information.)
+
+
+\newpage
+
+## 1. Apply the lm() function to all the data (education) and interpret the output you obtain with R
+
+
+```{r}
+lm_education = lm(education_df)
+summary(lm_education)
+```
+
+TODO Interpret output
+
+The `female$Education` has a slope of 397.54, while `male$Education` of 398.25, so both are slightly below 400.
+This also directly answers question 2, yes the slopes are significantly different from 0.
+
+Furthermore, the y-intersect is at -563.61 for females and 24.20 for males
+
+\newpage
+
+## 2. Remove the variables that are not good predictors and use all the remaining ones to build a multiple regression model. Which variables do you use? Does your model explain something? Explain the model building strategy you have applied. Interpret the most important values of the final model you obtain with R.
+
+Variables such as the model or vendor are not applicable to predict performance in a linear model. 
+ERP should not be used, as it is the result of a linear prediction of PRP (based on the available predictor values).
+
+
+\newpage
+
+## 5. You’re allowed to use only a single variable (predictor) to predict the value of PRP. Which one would you use? Does your model explain something? What is the confidence interval around the slope?
+
+We will be using corrplot library for plotting the correlations.
+```{r}
+library(corrplot)
+```
+
+```{r}
+computers_df_cor = cor(
+  subset(
+  	# to remove the non-numeric fields (model & vendor)
+    computers_df[sapply(computers_df, is.numeric)],
+    # Removing the ERP field that should not be used
+    select = -c(ERP),
+  )
+)
+corrplot(computers_df_cor)
+```
+
+MMAX is likely to be a good linear predictor for the PRP value, with MMIN as the alternative.
+This is to be expected, that if The Maximum Main Memory in Kilobytes is of interest, then so is the minimum main memory in kilobytes. 
+
+```{r}
+computers_df_lm_MMAX = lm(PRP ~ MMAX, data = computers_df)
+summary(computers_df_lm_MMAX)
+confint(computers_df_lm_MMAX, 'MMAX', level = 0.95)
+
+computers_df_lm_MMIN = lm(PRP ~ MMIN, data = computers_df)
+summary(computers_df_lm_MMIN)
+confint(computers_df_lm_MMIN, 'MMIN', level = 0.95)
+```
+
+MMAX seems better suited than MMIN, as can be seen with the Coefficients.
+It might be that MMIN might change slightly slower than MMAX for compatibility reasons.
+MMAX will likely always be "cutting-edge". 
+
+The confidence-interval around the slope is 0.011-0.013 for MMAX and 0.029-0.36 for MMIN.
+
+\newpage
+
+
+## 6. Visualize graphically the (linear) relationship that you found.
+
+
+```{r}
+plot(computers_df_lm_MMAX, which = c(1), main = "Residuals vs. Fitted for MMAX", caption = "")
+plot(computers_df_lm_MMIN, which = c(1), main = "Residuals vs. Fitted for MMIN", caption = "")
+```
+The derivation of the points from the residual = 0 line is smallest for small values, of which there are more for MMIN and MMAX.
+Of note is that the mean residuals for MMAX are consistently below the residual = 0 line after around 150,
+while for MMIN we have larger outliers and the mean even goes above the line for higher MMIN values.
+
+All this tells us, is that we have a lot more data for smaller MMIN and MMAX values and that MMAX correlates more strongly with PRP than MMIN. It is likely that after a certain threshold (of technological innovation), the MMIN did not need to increase to be in line with MMAX anymore, which is why MMAX is the better predictor than MMIN.
+
+\newpage
+
+## 7. Check the different variables (predictor) you have to predict mpg. In your opinion, which are the variables that cannot be used to explain the system performance?
+
+Obviously name can't be used to explain the mpg, origin is unlikely to be of impact too.
+Furthermore, the year might corrolate with mpg if the efficiency increased over time, but is not a direct predictor for mpg. 
+
+
+\newpage
+
+## 8. You’re allowed to use only a single variable (predictor) to predict the value of mpg. Which one would you use? Does your model explain something? What is the confidence interval around the slope?
+
+We will be using corrplot library for plotting the correlations.
+```{r}
+library(corrplot)
+```
+
+```{r}
+cars_df_cor = cor(
+  subset(
+  	# to remove the non-numeric fields
+    cars_df_cleaned[sapply(cars_df_cleaned, is.numeric)],
+  )
+)
+corrplot(cars_df_cor)
+```
+
+As expected origin is not useful.
+Best seems to be weight, which is to be expected as the more weight needs to be propelled forward, the higher the energy required. Thus we will be using weight.
+
+On a side-note, it can be said that weight, horsepower, displacements, and cylinders all relate to each other. 
+If the weight increases, so does the horsepower of the engine, the number of cylinders and the displacement.
+
+```{r}
+cars_df_cleaned_lm_weight = lm(mpg ~ weight, data = cars_df_cleaned)
+summary(cars_df_cleaned_lm_weight)
+confint(cars_df_cleaned_lm_weight, 'weight', level = 0.95)
+
+```
+
+As we have a negative correlation (if weight increases, mpg decreases) the confidence-interval aroudn the slope is the negative values -0.008 - -0.007.
+
+\newpage
+
+## 9. Visualize graphically the (linear) relationship that you found
+
+```{r}
+plot(cars_df_cleaned_lm_weight, which = c(1), main = "Residuals vs. Fitted for Weight", caption = "")
+```
+Of interest is that higher values tend to have more outliers (residuals).
+Do note that overall the residual = 0 line, seems to be quite fitting. 
+
+I would be wary to use the model as a predictor for smaller values, as we have a lack of data points for this range.
