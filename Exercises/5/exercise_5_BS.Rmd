@@ -180,8 +180,6 @@ dist_L1_L2 = function(a, b, L2 = TRUE) {
 
 ## 6. Consider both the Computers and Cars datasets. In Exercise #4 and in the previous questions of Exercise #5, you have proposed a regression model based on a single linear predictor or by taking in account many predictors. As a new regression model, apply the knn algorithm. You’re free to select the value of k, but you have to justify your choice over other possible values.
 
-TODO COMPARE THIS WITH LECTURES!
-
 We will be using the FNN package loaded in the preliminaries section.
 First, we will exclude vendor, model and ERP in the dataframe:
 ```{r}
@@ -216,7 +214,7 @@ Now to find k with lowest Mean Squared Error
 ```{r}
 k_best = 0
 mse_best = 10000 
-for (k in 1:10) { # TODO Change to mess around as you want :)
+for (k in 1:100) {
   computers_knn =  knn.reg(
     train=computers_train, 
     test=computers_test,
@@ -241,7 +239,6 @@ mse = mean((computers_knn$pred - computers_test_labels)^2)
 print(sprintf("Best k = %d with MSE = %f", k_best, mse))
 ```
 Plot this information:
-# And plot it.
 
 ```{r}
 computers_predicted = data.frame(Prediction = computers_knn$pred, Actual = computers_train_labels)
@@ -250,10 +247,78 @@ ggplot(computers_predicted, aes(x = Actual, y = Prediction)) +
   geom_abline(slope = 1, intercept = 0, color = "red")
 ```
 With such small MSE, the random train/test split will lead to multiple runs having different k values.
-k = 69 is the best with MSE 0.018, but k = 8 has MSE 0.022, which a performance improvement with minimal MSE loss.
+k = 69 was the best in one run with MSE 0.018, but k = 8 has MSE 0.022, which a performance improvement with minimal MSE loss.
 So we could use 8 here.
 
 \newpage
 
 ## Same for the cars dataset
 
+We will be using the FNN package loaded in the preliminaries section.
+First, we will exclude name:
+```{r}
+cars_df_short = cars_df_cleaned[, 1:8]
+```
+This needs to be normalized:
+```{r}
+normalize = function(x) {
+  (x - min(x)) / 
+		(max(x) - min(x))
+}
+```
+
+```{r}
+cars_df_norm = as.data.frame(lapply(cars_df_short, normalize))
+```
+
+Variables required for FNN: 
+```{r}
+n_car = nrow(cars_df_norm)
+train_car = sample(1:n_car, size = n_car/2)
+test_car = (1:n_car)[-train_car]
+```
+Remove MPG from training data: 
+```{r}
+cars_train = cars_df_norm[train_car, -1]
+cars_train_labels = cars_df_norm[test_car, 1]
+cars_test = cars_df_norm[test_car, -1]
+cars_test_labels = cars_df_norm[test_car, 1]
+```
+Now to find k with lowest Mean Squared Error
+```{r}
+k_best = 0
+mse_best = 10000 
+for (k in 1:100) {
+  cars_knn =  knn.reg(
+    train = cars_train, 
+    test = cars_test,
+    y = cars_train_labels,
+    k = k
+  )
+  
+  mse = mean((cars_knn$pred - cars_test_labels)^2)
+  
+  if (mse < mse_best) {
+    mse_best = mse
+    k_best = k
+  }
+}
+cars_knn =  knn.reg(
+  train = cars_train, 
+  test = cars_test,
+  y = cars_train_labels,
+  k = k_best
+)
+mse = mean((cars_knn$pred - cars_test_labels)^2)
+print(sprintf("Best k = %d with MSE = %f", k_best, mse))
+```
+Plot this information:
+
+```{r}
+cars_predicted = data.frame(Prediction = cars_knn$pred, Actual = cars_train_labels)
+ggplot(cars_predicted, aes(x = Actual, y = Prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red")
+```
+The best k-value is not constan (changes with the sampling) for this dataset too.
+Nonetheless, a small value (larger than 2 and smaller than 10) is likely to provide a good trade-off between performance and computation time.
