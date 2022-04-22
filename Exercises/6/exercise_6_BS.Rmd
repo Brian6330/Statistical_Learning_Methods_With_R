@@ -1,0 +1,393 @@
+---
+title: 'Exercise #6'
+author: "Brian Schweigler; 16-102-071"
+date: "27/04/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Model Evaluation with R
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+## Preliminaries
+Load the required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(FNN)
+```
+
+
+To normalize data, we define the following function:
+```{r}
+normalize = function(x) {
+	(x - min(x)) / (max(x) - min(x))
+}
+```
+
+We define the best model as the one with the lowest MSE.
+```{r}
+best_k_for_knn_reg = function(train,
+															train_labels,
+															test,
+															test_labels,
+															kStart,
+															kEnd) {
+	best_mse = NA
+	for (k in kStart:kEnd) {
+		model = knn.reg(
+			train = train,
+			test = test,
+			y = train_labels,
+			k = k
+		)
+		
+		mse = mean((model$pred - test_labels) ^ 2)
+		
+		if (is.na(best_mse) || mse < best_mse) {
+			best_mse = mse
+			best_k = k
+		}
+	}
+	
+	return(best_k)
+}
+```
+
+
+Loading the computers dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+computers_df = read.csv("Computers.txt", header = TRUE, sep = "\t"  , comment.char = "#")
+```
+
+As we know from exercise 4, Computers.txt has no outliers discernible (without additional information). 
+
+Loading the cars dataset and cleaning NAs:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+cars_df = read.csv("Cars.txt", header = TRUE, sep = "\t", comment.char = "#")
+```
+There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding rows.
+These are also mentioned in Cars.pdf.
+```{r}
+cars_df_cleaned <- cars_df[!is.na(cars_df$horsepower),]
+```
+Besides the NAs found for horspower, the data seems to be good (without additional information.)
+
+
+\newpage
+
+## 1. Compare the two models (linear regression VS k-NN) for the Computers dataset (filename: Computers.txt) as it follows:
+
+## 1a. Evaluate the quality of the fit (of the best model) between a single regression model of your choice and a multiple regression.
+
+First exclude vendor, model and ERP, then normalize:
+```{r}
+computers_df = computers_df[, 3:9]
+computers_df_norm = as.data.frame(lapply(computers_df, normalize))
+summary(computers_df_norm)
+```
+
+Now we create the two regression models:
+```{r}
+lm_computers_single = lm(PRP ~ MMAX, data = computers_df_norm)
+summary(lm_computers_single)
+lm_computers_multiple = lm(PRP ~ MYCT + MMIN + MMAX + CACH + CGMIN + CHMAX, data = computers_df_norm)
+summary(lm_computers_multiple)
+```
+
+Compare these by calculating MSE:
+```{r}
+computers_predict_single = cbind(computers_df_norm,
+																 predict(lm_computers_single, interval = 'confidence'))
+computers_predict_multiple = cbind(computers_df_norm,
+																	 predict(lm_computers_multiple, interval = 'confidence'))
+mse.single_linear = mean((computers_predict_single$PRP - computers_predict_single$fit) ^
+												 	2)
+mse.multi_linear = mean((
+	computers_predict_multiple$PRP - computers_predict_multiple$fit
+) ^ 2)
+print(sprintf("Single linear regression MSE = %f", mse.single_linear))
+print(sprintf("Multiple linear regression MSE = %f", mse.multi_linear))
+```
+
+As expected, the multiple-regression model performs better (0.0027 vs 0.0050).
+
+
+
+## 1b. Use the k-NN regression to build the second model, applying LOO or 10fold cross-validation
+
+## 1c. Compare the best model in (a) and the k-NN model you defined in (b). Which model do you prefer? Why? What is/are the advantage(s) of your choice? What about the drawbacks?
+
+
+
+\newpage
+
+## 2. Compare the two models (linear regression VS k-NN) for the Cars dataset (filename: Cars.txt) as it follows:
+
+## 2d. Evaluate the quality of the fit (of the best model) between a single regression model of your choice and a multiple regression.
+
+## 2e. Use the k-NN regression to build the second model, applying LOO or 10fold cross-validation.
+
+## 2f. Compare the best model in (d) and the k-nn model you defined in (e). Which model do you prefer? Why? What is/are the advantage(s) of your choice? What about the drawbacks?
+
+
+\newpage
+
+## 2. Remove the variables that are not good predictors and use all the remaining ones to build a multiple regression model. Which variables do you use? Does your model explain something? Explain the model building strategy you have applied. Interpret the most important values of the final model you obtain with R.
+
+Variables such as the model or vendor are not applicable to predict performance. 
+ERP should not be used, as it is the result of a linear prediction of PRP (based on the available predictor values).
+
+This leaves us with:
+
+```{r}
+lm_computers = lm(PRP ~ MYCT + MMIN + MMAX + CACH + CGMIN + CHMAX, data = computers_df)
+summary(lm_computers)
+```
+
+From the output, we can tell that MMIN, MMAX, CACH and CHMAX, are very likely to be in a liner relation with PRP, as their p value are very small.
+MYCT could also be used to a less extent, as its p value of 0.0058 is low enough to reject H_0.
+
+CGMIN has a p value of 0.75, which too high (unable to reject H0), and thus cannot we do not know if there is a linear relationship to PRP.
+
+\newpage
+
+## 3. Visualize graphically the relationship found by you model (by considering the most important variable). Do you notice outlier(s) or hard observations to predict with your model?
+
+We can also take a look at some of the models' plots
+
+```{r}
+plot(lm_computers)
+```
+
+The distribution of residuals implies that there is either a non-linear relationship or an additional set of linear relations that we did not regard. 
+In the QQ plot, the residuals follow a roughly normal distribution, except for the head and tail ends of the distribution, where there are a few outliers. 
+
+Lastly we can reduce our model to one variable (MMAX), and plot this prediction.
+
+```{r}
+lm_computers = lm(PRP ~ MMAX, data = computers_df)
+computers_df.predict = cbind(computers_df, predict(lm_computers, interval = 'confidence'))
+ggplot(computers_df.predict, aes(x = MMAX, y = PRP)) +
+  geom_point() +
+  geom_line(aes(x = MMAX, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2)
+```
+There quite a few outliers at all stages, making this definitely not a perfect model.
+
+
+\newpage
+
+## 2b. and 3b: The same as 2 & 3, but with the cars dataset:
+
+Obviously name can't be used to explain the mpg, the origin is unlikely to be of impact too.
+Furthermore, the year might corrolate with mpg if the efficiency increased over time, but is not a direct predictor for mpg. 
+
+This leaves us with:
+
+```{r}
+lm_cars = lm(mpg ~ cylinders + displacement + horsepower + weight + acceleration + year, data = cars_df_cleaned)
+summary(lm_cars)
+```
+
+The car's weight has an inverse correlation with the mpg
+The Year has a slight correlation, implying that efficiency of cars has kept increasing over time. 
+
+Limiting ourselves to one attribute, we will be using the weight.
+The manufacturing year could probably be used as well. 
+
+```{r}
+lm_cars = lm(mpg ~ weight, data = cars_df_cleaned)
+cars_df_cleaned.predict = cbind(cars_df_cleaned, predict(lm_cars, interval = 'confidence'))
+ggplot(cars_df_cleaned.predict, aes(x = weight, y = mpg)) +
+  geom_point() +
+  geom_line(aes(x = weight, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2)
+```
+
+The higher the weigt, the lower the miles per gallon. 
+Do note that the variance is quite high, but on both sides. 
+It seems a "good enough" approach to use the weight to get the mpg of the vehicles. 
+
+
+\newpage
+
+## 5. Write a R function to compute the distance between two observations. As a parameter, we can ask to compute the Euclidean distance (by default) or the L1-norm.
+
+So, a function either L2 (euclidean) or L1 norm:
+```{r}
+dist_L1_L2 = function(a, b, L2 = TRUE) {
+
+  if (!is.vector(a) || !is.vector(b)) {
+    return("a and b must be vectors!")
+  }
+  
+  if (length(a) != length(b)) {
+    return("a and b must be of equal length!")
+  }
+  
+  if (L2) {
+    diff = abs(a - b)**2
+    return(sqrt(sum(diff)))
+  } else {
+  	  diff = abs(a - b)
+  		return(sum(diff)) 
+  }
+}
+```
+
+\newpage
+
+## 6. Consider both the Computers and Cars datasets. In Exercise #4 and in the previous questions of Exercise #5, you have proposed a regression model based on a single linear predictor or by taking in account many predictors. As a new regression model, apply the knn algorithm. You’re free to select the value of k, but you have to justify your choice over other possible values.
+
+We will be using the FNN package loaded in the preliminaries section.
+First, we will exclude vendor, model and ERP in the dataframe:
+```{r}
+computers_df_short = computers_df[, 3:9]
+```
+This needs to be normalized:
+```{r}
+normalize = function(x) {
+  (x - min(x)) / 
+		(max(x) - min(x))
+}
+```
+
+```{r}
+computers_df_norm = as.data.frame(lapply(computers_df_short, normalize))
+```
+
+Variables required for FNN: 
+```{r}
+n = nrow(computers_df_norm)
+train = sample(1:n, size = n/2)
+test = (1:n)[-train]
+```
+Remove PRP from training data: 
+```{r}
+computers_train = computers_df_norm[train, -7]
+computers_train_labels = computers_df_norm[test, 7]
+computers_test = computers_df_norm[test, -7]
+computers_test_labels = computers_df_norm[test, 7]
+```
+Now to find k with lowest Mean Squared Error
+```{r}
+k_best = 0
+mse_best = 10000 
+for (k in 1:100) {
+  computers_knn =  knn.reg(
+    train=computers_train, 
+    test=computers_test,
+    y = computers_train_labels,
+    k = k
+  )
+  
+  mse = mean((computers_knn$pred - computers_test_labels)^2)
+  
+  if (mse < mse_best) {
+    mse_best = mse
+    k_best = k
+  }
+}
+computers_knn =  knn.reg(
+  train=computers_train, 
+  test=computers_test,
+  y = computers_train_labels,
+  k = k_best
+)
+mse = mean((computers_knn$pred - computers_test_labels)^2)
+print(sprintf("Best k = %d with MSE = %f", k_best, mse))
+```
+Plot this information:
+
+```{r}
+computers_predicted = data.frame(Prediction = computers_knn$pred, Actual = computers_train_labels)
+ggplot(computers_predicted, aes(x = Actual, y = Prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red")
+```
+With such small MSE, the random train/test split will lead to multiple runs having different k values.
+k = 69 was the best in one run with MSE 0.018, but k = 8 has MSE 0.022, which a performance improvement with minimal MSE loss.
+So we could use 8 here.
+
+\newpage
+
+## Same for the cars dataset
+
+We will be using the FNN package loaded in the preliminaries section.
+First, we will exclude name:
+```{r}
+cars_df_short = cars_df_cleaned[, 1:8]
+```
+This needs to be normalized:
+```{r}
+normalize = function(x) {
+  (x - min(x)) / 
+		(max(x) - min(x))
+}
+```
+
+```{r}
+cars_df_norm = as.data.frame(lapply(cars_df_short, normalize))
+```
+
+Variables required for FNN: 
+```{r}
+n_car = nrow(cars_df_norm)
+train_car = sample(1:n_car, size = n_car/2)
+test_car = (1:n_car)[-train_car]
+```
+Remove MPG from training data: 
+```{r}
+cars_train = cars_df_norm[train_car, -1]
+cars_train_labels = cars_df_norm[test_car, 1]
+cars_test = cars_df_norm[test_car, -1]
+cars_test_labels = cars_df_norm[test_car, 1]
+```
+Now to find k with lowest Mean Squared Error
+```{r}
+k_best = 0
+mse_best = 10000 
+for (k in 1:100) {
+  cars_knn =  knn.reg(
+    train = cars_train, 
+    test = cars_test,
+    y = cars_train_labels,
+    k = k
+  )
+  
+  mse = mean((cars_knn$pred - cars_test_labels)^2)
+  
+  if (mse < mse_best) {
+    mse_best = mse
+    k_best = k
+  }
+}
+cars_knn =  knn.reg(
+  train = cars_train, 
+  test = cars_test,
+  y = cars_train_labels,
+  k = k_best
+)
+mse = mean((cars_knn$pred - cars_test_labels)^2)
+print(sprintf("Best k = %d with MSE = %f", k_best, mse))
+```
+Plot this information:
+
+```{r}
+cars_predicted = data.frame(Prediction = cars_knn$pred, Actual = cars_train_labels)
+ggplot(cars_predicted, aes(x = Actual, y = Prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red")
+```
+The best k-value is not constan (changes with the sampling) for this dataset too.
+Nonetheless, a small value (larger than 2 and smaller than 10) is likely to provide a good trade-off between performance and computation time.
