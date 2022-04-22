@@ -125,8 +125,66 @@ As expected, the multiple-regression model performs better (0.0027 vs 0.0050).
 
 ## 1b. Use the k-NN regression to build the second model, applying LOO or 10fold cross-validation
 
+We will be using 10-fold cross-validation:
+```{r}
+x = 10
+n = nrow(computers_df_norm)
+chunkSize = floor(n / x)
+meanMSE = 0.0
+indexRange = 1:n
+permutation = sample(indexRange, n)
+startIndex = 1
+for (i in 1:x) {
+	stopIndex = startIndex + chunkSize - 1
+	
+	# Setting the indices for current fold
+	test = permutation[startIndex:stopIndex]
+	train = indexRange[-test]
+	
+	# Removing PRP from the training data
+	computers_train = computers_df_norm[train, -7]
+	computers_train_labels = computers_df_norm[train, 7]
+	computers_test = computers_df_norm[test, -7]
+	computers_test_labels = computers_df_norm[test, 7]
+	
+	best_k = best_k_for_knn_reg(
+		computers_train,
+		computers_train_labels,
+		computers_test,
+		computers_test_labels,
+		kStart =  1,
+		kEnd = 50
+	)
+	
+	computers_knn =  knn.reg(
+		train = computers_train,
+		test = computers_test,
+		y = computers_train_labels,
+		k = best_k
+	)
+	mse = mean((computers_knn$pred - computers_test_labels) ^ 2)
+	print(sprintf("Fold %d: Best k = %d with MSE = %f", i, best_k, mse))
+	
+	meanMSE = meanMSE + mse
+	
+	# Start index for next iteration
+	startIndex = stopIndex + 1
+}
+mse_knn = meanMSE / x
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse_knn))
+```
+
+
 ## 1c. Compare the best model in (a) and the k-NN model you defined in (b). Which model do you prefer? Why? What is/are the advantage(s) of your choice? What about the drawbacks?
 
+As can be seen, the k-NN model outperforms the linear regression model.
+If we have enough memory, a k-NN model is better, but if we are limited (or have a huge amount of training data), the linear regression model would be more sensible. 
+
+```{r}
+print(sprintf("Single linear regression MSE = %f", mse.single_linear))
+print(sprintf("Multiple linear regression: MSE = %f", mse.multi_linear))
+print(sprintf("k-NN regression with 10-fold CV: MSE = %f", mse_knn))
+```
 
 
 \newpage
