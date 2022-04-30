@@ -1,0 +1,280 @@
+---
+title: 'Exercise #7'
+author: "Brian Schweigler; 16-102-071"
+date: "04/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Logistic Regression with R
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+## Preliminaries
+Load the required libraries
+
+```{r}
+library(tidyr)
+library(ggplot2)
+library(FNN)
+library(boot)
+library(MASS)
+```
+
+Set a seed for later:
+```{r}
+set.seed(1786397)
+```
+
+
+To normalize data, we define the following function:
+```{r}
+normalize = function(x) {
+	(x - min(x)) / (max(x) - min(x))
+}
+```
+
+We define the best model as the one with the lowest MSE.
+```{r}
+best_k_for_knn_reg = function(train,
+															train_labels,
+															test,
+															test_labels,
+															kStart,
+															kEnd) {
+	best_mse = NA
+	for (k in kStart:kEnd) {
+		model = knn.reg(
+			train = train,
+			test = test,
+			y = train_labels,
+			k = k
+		)
+		
+		mse = mean((model$pred - test_labels) ^ 2)
+		
+		if (is.na(best_mse) || mse < best_mse) {
+			best_mse = mse
+			best_k = k
+		}
+	}
+	
+	return(best_k)
+}
+```
+
+
+
+Loading the cars dataset and cleaning NAs:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+cars_df = read.csv("Cars.txt", header = TRUE, sep = "\t", comment.char = "#")
+```
+There are 6 NAs for horsepower that need to be removed -> delete the whole corresponding rows.
+These are also mentioned in Cars.pdf.
+```{r}
+cars_df_cleaned <- cars_df[!is.na(cars_df$horsepower),]
+```
+Besides the NAs found for horspower, the data seems to be good (without additional information.)
+
+
+Loading the cancer dataset:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+cancer_df = read.csv("Cancer.txt", header = TRUE, sep = "\t", comment.char = "#")
+```
+
+Having a look at the cancer_df: 
+```{r}
+summary(cancer_df)
+```
+As is mentioned in the PDF, no NAs are within the data. The range of the values can't be gauged without further information.
+
+\newpage
+
+## 1. Consider the Cars dataset (filename: Cars.txt).
+
+## 1a. Build three different (generalized) linear regression models to predict mpg (at least one of them must be a multiple regression model).
+
+First we will only select the values we are interested in:
+```{r}
+cars_df_cleaned_short = cars_df_cleaned[, 1:6]
+```
+
+Then normalize the dataframe:
+
+```{r}
+cars_df_norm = as.data.frame(lapply(cars_df_cleaned_short, normalize))
+summary(cars_df_norm)
+```
+
+Creating the linear regressions:
+```{r}
+lm_cars_single = lm(mpg ~ weight, data = cars_df_norm)
+summary(lm_cars_single)
+lm_cars_single_alternate = lm(mpg ~ acceleration, data = cars_df_norm)
+summary(lm_cars_single_alternate)
+lm_cars_multiple = lm(mpg ~ cylinders + displacement + horsepower + weight + acceleration,
+											data = cars_df_norm)
+summary(lm_cars_multiple)
+```
+
+Comparing them through the MSEs:
+```{r}
+cars_predict_single = cbind(cars_df_norm,
+														predict(lm_cars_single, interval = 'confidence'))
+cars_predict_single_alt = cbind(cars_df_norm,
+																predict(lm_cars_single_alternate, interval = 'confidence'))
+cars_predict_multiple = cbind(cars_df_norm,
+															predict(lm_cars_multiple, interval = 'confidence'))
+mse_car_single_linear = mean((cars_predict_single$mpg - cars_predict_single$fit) ^ 2)
+mse_car_single_linear_alt = mean((cars_predict_single_alt$mpg - cars_predict_single_alt$fit) ^ 2)
+mse_car_multi_linear = mean((cars_predict_multiple$mpg - cars_predict_multiple$fit) ^ 2)
+print(sprintf("Single linear regression MSE = %f", mse_car_single_linear))
+print(sprintf("Alternate Single linear regression MSE = %f", mse_car_single_linear_alt))
+print(sprintf("Multiple linear regression MSE = %f", mse_car_multi_linear))
+```
+Multiple linear regression performs slightly better.
+Also, weight is better suited than acceleration for single linear regression. 
+
+
+## 1b. Perform 10-fold cross validation to estimate the test error of the models you built in a).
+
+We will be using 10-fold cross-validation:
+_______________________________________
+TODO: IT can't just be this again, right?
+```{r}
+x = 10
+n = nrow(cars_df_norm)
+chunkSize = floor(n / x)
+meanMSE = 0.0
+indexRange = 1:n
+permutation = sample(indexRange, n)
+startIndex = 1
+for (i in 1:x) {
+	stopIndex = startIndex + chunkSize - 1
+	
+	# Setting the indices for current fold
+	test = permutation[startIndex:stopIndex]
+	train = indexRange[-test]
+	
+	# Removing mpg (first column) from the training data
+	cars_train = cars_df_norm[train, -1]
+	cars_train_labels = cars_df_norm[train, 1]
+	cars_test = cars_df_norm[test, -1]
+	cars_test_labels = cars_df_norm[test, 1]
+	
+	best_k = best_k_for_knn_reg(
+		cars_train,
+		cars_train_labels,
+		cars_test,
+		cars_test_labels,
+		kStart =  1,
+		kEnd = 50
+	)
+	
+	cars_knn =  knn.reg(
+		train = cars_train,
+		test = cars_test,
+		y = cars_train_labels,
+		k = best_k
+	)
+	mse = mean((cars_knn$pred - cars_test_labels) ^ 2)
+	print(sprintf("Fold %d: Best k = %d with MSE = %f", i, best_k, mse))
+	
+	meanMSE = meanMSE + mse
+	
+	# Start index for next iteration
+	startIndex = stopIndex + 1
+}
+mse_cars_knn = meanMSE / x
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse_cars_knn))
+```
+
+
+
+## 1c. Compare the schemes in a) performing a t-test.
+
+TODO
+
+```{r}
+t.test(lm_cars_single, lm_cars_single_alternate)
+```
+
+
+\newpage
+
+## 2. Apply the logistic regression to predict the category diagnosis and interpret the most important values of the model that you obtained with R. Can you estimate the error rate of your model?
+
+As a preliminary step, we will remove the id and then encode diagnosis as a factor:
+```{r}
+cancer.df.short <- cancer_df[,-1]
+cancer.df.short$Diagnostic <-
+	factor(
+		cancer.df.short$Diagnostic,
+		levels = c("B", "M"),
+		labels = c("Benign", "Malignant")
+	)
+```
+
+
+Now we can create the training and test sets:
+```{r}
+train.size = round(nrow(cancer.df.short) * 0.7)
+train.index = sample(c(1:nrow(cancer.df.short)), train.size)
+cancer.df.train = cancer.df.short[train.index, ]
+cancer.df.test = cancer.df.short[-train.index, ]
+cancer.df.train.label <- cancer.df.train[, 1]
+cancer.df.test.label <- cancer.df.test[, 1]
+```
+
+The logistic model can be created as follows:
+```{r}
+cancer.df.classifier <-
+	glm(Diagnostic ~ .,
+			data = cancer.df.train,
+			family = binomial(link = "logit"))
+cancer.df.classifier
+```
+The algorithm did not converge, but we have a low AIC value. 
+
+Making a prediction on test data:
+```{r}
+cancer.df.pred <-
+	predict(cancer.df.classifier, cancer.df.test, type = "response")
+threshold <- 0.5
+cancer.df.pred.results <-
+	as.factor(ifelse(cancer.df.pred < threshold, "Benign", "Malignant"))
+```
+
+And evaluating this model:
+```{r}
+correct.predictions = sum (cancer.df.test.label == cancer.df.pred.results)
+print(sprintf("Number of correct predictions = %d", correct.predictions))
+accuracy = correct.predictions / nrow(cancer.df.test)
+print(sprintf("Accuracy = %f", accuracy))
+table(cancer.df.test$Diagnostic)
+```
+
+
+## Predicting the error rate
+We could use precision and recall to estimate the error rate:
+```{r}
+confusion.mat <-
+	table(cancer.df.test.label, cancer.df.pred.results)[2:1, 2:1]
+confusion.mat
+TP = confusion.mat[1]
+TN = confusion.mat[4]
+FP = confusion.mat[2]
+FN = confusion.mat[3]
+
+precision = TP / (TP + FP)
+print(sprintf("Precision = %f", precision))
+
+recall = TP / (TP + FN)
+print(sprintf("Recall = %f", recall))
+```
