@@ -14,11 +14,7 @@ editor_options:
 Load the required libraries
 
 ```{r}
-library(tidyr)
-library(ggplot2)
 library(FNN)
-library(boot)
-library(MASS)
 ```
 
 Set a seed for later:
@@ -144,65 +140,75 @@ Also, weight is better suited than acceleration for single linear regression.
 
 ## 1b. Perform 10-fold cross validation to estimate the test error of the models you built in a).
 
-We will be using 10-fold cross-validation:
-_______________________________________
-TODO: IT can't just be this again, right?
+For this we can define a function: 
+
 ```{r}
-x = 10
-n = nrow(cars_df_norm)
-chunkSize = floor(n / x)
-meanMSE = 0.0
-indexRange = 1:n
-permutation = sample(indexRange, n)
-startIndex = 1
-for (i in 1:x) {
-	stopIndex = startIndex + chunkSize - 1
+generalized_linear_cv = function(df, formula, x) {
+	n = nrow(df)
+	chunkSize = floor(n / x)
+	mse.list = c()
 	
-	# Setting the indices for current fold
-	test = permutation[startIndex:stopIndex]
-	train = indexRange[-test]
+	indexRange = 1:n
+	permutation = sample(indexRange, n)
 	
-	# Removing mpg (first column) from the training data
-	cars_train = cars_df_norm[train, -1]
-	cars_train_labels = cars_df_norm[train, 1]
-	cars_test = cars_df_norm[test, -1]
-	cars_test_labels = cars_df_norm[test, 1]
+	startIndex = 1
+	for (i in 1:x) {
+		stopIndex = startIndex + chunkSize - 1
+		
+		# Indices for current fold
+		test = permutation[startIndex:stopIndex]
+		train = indexRange[-test]
+		
+		df.train = df[train, ]
+		df.test = df[test, ]
+		
+		df.glm = glm(formula, data = df.train)
+		df.predict = predict.glm(df.glm, newdata = df.test, type = "response")
+		mse = mean((df.predict - df.test$mpg) ^ 2)
+		
+		mse.list = append(mse.list, mse)
+		
+		# Start index for next iteration
+		startIndex = stopIndex + 1
+	}
 	
-	best_k = best_k_for_knn_reg(
-		cars_train,
-		cars_train_labels,
-		cars_test,
-		cars_test_labels,
-		kStart =  1,
-		kEnd = 50
-	)
-	
-	cars_knn =  knn.reg(
-		train = cars_train,
-		test = cars_test,
-		y = cars_train_labels,
-		k = best_k
-	)
-	mse = mean((cars_knn$pred - cars_test_labels) ^ 2)
-	print(sprintf("Fold %d: Best k = %d with MSE = %f", i, best_k, mse))
-	
-	meanMSE = meanMSE + mse
-	
-	# Start index for next iteration
-	startIndex = stopIndex + 1
+	meanMSE = mean(mse.list)
+	return(list("mean" = meanMSE, "mse" = mse.list))
 }
-mse_cars_knn = meanMSE / x
-print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse_cars_knn))
 ```
+
+
+
+```{r}
+cars_single_results = generalized_linear_cv(cars_df_norm, lm_cars_single, 10)
+cars_single_alt_results = generalized_linear_cv(cars_df_norm, lm_cars_single_alternate, 10)
+cars_multi_results = generalized_linear_cv(cars_df_norm, lm_cars_multiple, 10)
+
+
+print(sprintf("Single linear regression MSE = %f", cars_single_results$mean))
+print(sprintf("Alternate Single linear regression MSE = %f", cars_single_alt_results$mean))
+print(sprintf("Multiple linear regression MSE = %f", cars_multi_results$mean))
+```
+
+Using the 10-fold cross validation we still see that the multiple regression variant is slightly better.
 
 
 
 ## 1c. Compare the schemes in a) performing a t-test.
 
-TODO
+For the t-test, we will require the vector of the MSEs:
+
+We first compare the single with the multiple linear regression. 
+```{r}
+t.test(cars_single_results$mse, cars_multi_results$mse, paired=TRUE, alternative="two.sided")
+```
+The p-value is too high to say that the models are vastly different (as seen in the close MSEs of the two).
+
+Comparing the alternative variant of the single regression model to both the other models, we see that this one is significantly different (p value < 0.05 for both).
 
 ```{r}
-t.test(lm_cars_single, lm_cars_single_alternate)
+t.test(cars_single_results$mse, cars_single_alt_results$mse, paired=TRUE, alternative="two.sided")
+t.test(cars_multi_results$mse, cars_single_alt_results$mse, paired=TRUE, alternative="two.sided")
 ```
 
 
