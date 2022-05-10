@@ -1,0 +1,152 @@
+---
+title: 'Exercise #8'
+author: "Brian Schweigler; 16-102-071"
+date: "11/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Classification - LDA and Logistic Regression
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+## Preliminaries
+Load the required libraries
+
+```{r}
+library(FNN)
+library(MASS)
+```
+
+Set a seed for later:
+```{r}
+set.seed(1786397)
+```
+
+
+
+Loading the vertebral dataset, set Status as a factor and show an overview:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+
+
+vertebral_df = read.csv("Vertebral.txt", header = TRUE, sep = ",", comment.char = "#")
+vertebral_df$Status <-
+	factor(
+		vertebral_df$Status,
+		levels = c("Normal", "Abnormal"),
+		labels = c("Normal", "Abnormal")
+	)
+summary(vertebral_df)
+```
+
+As is mentioned in the PDF, no NAs are within the data. The range of the values can't be gauged without further information.
+
+## 1a. Use logistic regression to predict variable Status.
+
+
+Incidence, Tilt, Angle, Slope Radius, Degree are all derived from the shape and orientation of the pelvis. 
+Thus we do not need all of them to predict status and will instead only use Incidence, Radius and Degree:
+```{r}
+vert_df = subset(vertebral_df, select = c("Status", "Incidence", "Radius", "Degree"))
+```
+
+Now we divide this into test (30%) and train (70%) data set:
+
+```{r}
+training = round(nrow(vert_df)*0.7)
+training_index = sample( c(1:nrow(vert_df)), training)
+training_data = vert_df[training_index,]
+summary(training_data)
+testing_data = vert_df[-training_index,]
+summary(testing_data)
+```
+
+Now we can perform the logistic regression model:
+```{r}
+vert_df_LR = glm(Status ~ ., data = training_data, family = binomial(link = "logit"))
+summary(vert_df_LR)
+```
+
+Degree seems the most useful out of the 3 looked at, while Radius is also useful but Incidence is not a good predictor of status on its own.
+
+\newpage
+
+## 1b. Use LDA to predict the variable Status
+
+```{r}
+vert_df_LDA = lda(Status ~ ., data = training_data)
+vert_df_LDA
+plot(vert_df_LDA)
+```
+
+From the coefficients, we can tell that radius has the highest impact in LDA on the model. 
+Its impact is higher than the sum of incidence and degree (as coefficients of Incidence + Degree < Coefficient of Radius).
+
+\newpage
+
+## 3. Compare the predictions you obtained with the logistic regression and LDA. Use a fair methodology to compare the classifiers (and explain your choice). Can you estimate the error rate for those strategies? Which classifier is the best? Why?
+
+Some stats for the LR model: 
+```{r}
+LR_Test_Output = predict(vert_df_LR, testing_data, type = "response")
+threshold = 0.5
+LR_Test_Results = as.factor(ifelse(LR_Test_Output < threshold, "Abnormal", "Normal"))
+LR_Correct_Pred = sum (testing_data$Status == LR_Test_Results)
+LR_Correct_Pred
+LR_Accuracy = LR_Correct_Pred / nrow(testing_data)
+LR_Accuracy
+```
+
+Stats for the LDA model: 
+```{r}
+LDA_Test_Output = predict(vert_df_LDA, testing_data, type = "response")$class
+LDA_Correct_Predictions = sum(testing_data$Status == LDA_Test_Output)
+LDA_Correct_Predictions
+LDA_Accuracy = LDA_Correct_Predictions/nrow(testing_data)
+LDA_Accuracy
+
+```
+
+The LDA has a way higher accuracy than the LR. Removing "Incidence" from the LR (or changing the threshold) might improve its performance, but in this case the LDA is the better choice.
+
+Alternatively we can also use the confusion matrix:
+
+```{r}
+confusion_mat_LR <-
+	table(testing_data$Status, LR_Test_Results)[2:1, 2:1]
+confusion_mat_LR
+TP_LR = confusion_mat_LR[1]
+TN_LR = confusion_mat_LR[4]
+FP_LR = confusion_mat_LR[2]
+FN_LR = confusion_mat_LR[3]
+
+precision_LR = TP_LR / (TP_LR + FP_LR)
+print(sprintf("Precision = %f", precision_LR))
+
+recall_LR = TP_LR / (TP_LR + FN_LR)
+print(sprintf("Recall = %f", recall_LR))
+```
+
+```{r}
+confusion_mat_LDA <-
+	table(testing_data$Status, LDA_Test_Output)[2:1, 2:1]
+confusion_mat_LDA
+TP_LDA = confusion_mat_LDA[1]
+TN_LDA = confusion_mat_LDA[4]
+FP_LDA = confusion_mat_LDA[2]
+FN_LDA = confusion_mat_LDA[3]
+
+precision_LDA = TP_LDA / (TP_LDA + FP_LDA)
+print(sprintf("Precision = %f", precision_LDA))
+
+recall_LDA = TP_LDA / (TP_LDA + FN_LDA)
+print(sprintf("Recall = %f", recall_LDA))
+```
+
+If we go with precision and recall, we see that LDA has better recall but its precision is worse than LR.
+Even more interesting is the fact that the precision of the LDA is roughly its accuracy, but the accuracy of the LR is much, much worse. The LR might require some fine-tuning before I'd vouch for it to be publicly used. 
+
+
