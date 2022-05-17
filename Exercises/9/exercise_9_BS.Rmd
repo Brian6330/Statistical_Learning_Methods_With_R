@@ -1,0 +1,202 @@
+---
+title: 'Exercise #9'
+author: "Brian Schweigler; 16-102-071"
+date: "19/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Classification and Regression Trees
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+## Preliminaries
+Load the required libraries
+
+```{r}
+library(tree)
+```
+
+Set a seed for later:
+```{r}
+set.seed(1786397)
+```
+
+
+
+Loading the low weight dataset, set Status as a factor and show an overview:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+weight_df = read.csv("LowWeight.txt", sep = "\t", header = TRUE)
+summary(weight_df)
+```
+
+No NAs; the range of the values can't be gauged without further information.
+
+Loading the heart dataset:
+```{r}
+heart_df = read.csv("Heart.txt",
+										header = TRUE,
+										sep = "\t",
+										comment.char = "#")
+summary(heart_df)
+```
+
+No NAs; the range of the values can't be gauged without further information.
+
+## 1a. Create a regression tree using the variable birth_weight as a target. Plot the resulting model.
+
+First we will remove the data that is not of interest in our predictions; being the ID and whether it is low birth weight (which is what we ant to predict)
+
+```{r}
+useful_weight <- weight_df[,-(1:2)]
+summary(useful_weight)
+```
+
+Now we divide this into test (30%) and train (70%) data set:
+
+```{r}
+training = round(nrow(useful_weight) * 0.7)
+training_index = sample(c(1:nrow(useful_weight)), training)
+training_data = useful_weight[training_index,]
+summary(training_data)
+testing_data = useful_weight[-training_index,]
+summary(testing_data)
+```
+
+Now we can perform the regression tree model:
+```{r}
+reg_tree_model <-
+	tree(birth_weight ~ ., training_data, split = "deviance")
+summary(reg_tree_model)
+plot(reg_tree_model)
+text(reg_tree_model, pretty = 0, cex = 1.1)
+```
+
+Here we have a tree, that will definitely need pruning.
+
+\newpage
+
+## 2. Calculate the train and test MSE. Describe the results you obtained.
+
+This is quite straightforward for both sets:
+
+```{r}
+training_predictions <-
+	predict(reg_tree_model, training_data, type = "vector")
+training_MSE = mean ((training_predictions - training_data$birth_weight) ^
+										 	2)
+training_MSE
+
+test_predictions <-
+	predict(reg_tree_model, testing_data, type = "vector")
+test_MSE = mean ((test_predictions - testing_data$birth_weight) ^ 2)
+test_MSE
+```
+
+As the magnitude of the distance is data dependant, we can only say that the training MSE is of a factor 2.5 smaller than the MSE of the test predictions.
+
+\newpage
+
+## 3. Should your regression tree be pruned? If yes, which strategy would you use? Compare the previous test MSE with the one obtained with the pruned tree. Plot the new model.
+
+Yes, definitely needs to be pruned (and will improve Test MSE as well):
+
+```{r}
+reg_tree_cv <- cv.tree(reg_tree_model, K = 10)
+reg_tree_cv
+
+dev_min = which(reg_tree_cv$dev == min(reg_tree_cv$dev))
+dev_min_size = reg_tree_cv$size[dev_min]
+plot(reg_tree_cv$size,
+		 reg_tree_cv$dev,
+		 main = "Deviance factor",
+		 type = "b")
+plot(reg_tree_cv)
+
+reg_tree_pruned <-  prune.tree(reg_tree_model, best = 4)
+summary(reg_tree_pruned)
+plot(reg_tree_pruned)
+text(reg_tree_pruned, pretty = 0)
+
+
+test_predictions_2 <-
+	predict(reg_tree_pruned, testing_data, type = "vector")
+test_MSE_2 = mean ((test_predictions_2 - testing_data$birth_weight) ^ 2)
+test_MSE_2
+
+```
+
+Comparing with the unpruned, we definitely have an improved MSE now:
+```{r}
+test_MSE
+test_MSE_2
+```
+
+
+\newpage
+
+## 3. Compare the predictions you obtained with the logistic regression and LDA. Use a fair methodology to compare the classifiers (and explain your choice). Can you estimate the error rate for those strategies? Which classifier is the best? Why?
+
+Some stats for the LR model: 
+```{r}
+LR_Test_Output = predict(vert_df_LR, testing_data, type = "response")
+threshold = 0.5
+LR_Test_Results = as.factor(ifelse(LR_Test_Output < threshold, "Abnormal", "Normal"))
+LR_Correct_Pred = sum (testing_data$Status == LR_Test_Results)
+LR_Correct_Pred
+LR_Accuracy = LR_Correct_Pred / nrow(testing_data)
+LR_Accuracy
+```
+
+Stats for the LDA model: 
+```{r}
+LDA_Test_Output = predict(vert_df_LDA, testing_data, type = "response")$class
+LDA_Correct_Predictions = sum(testing_data$Status == LDA_Test_Output)
+LDA_Correct_Predictions
+LDA_Accuracy = LDA_Correct_Predictions/nrow(testing_data)
+LDA_Accuracy
+
+```
+
+The LDA has a way higher accuracy than the LR. Removing "Incidence" from the LR (or changing the threshold) might improve its performance, but in this case the LDA is the better choice.
+
+Alternatively we can also use the confusion matrix:
+
+```{r}
+confusion_mat_LR <-
+	table(testing_data$Status, LR_Test_Results)[2:1, 2:1]
+confusion_mat_LR
+TP_LR = confusion_mat_LR[1]
+TN_LR = confusion_mat_LR[4]
+FP_LR = confusion_mat_LR[2]
+FN_LR = confusion_mat_LR[3]
+
+precision_LR = TP_LR / (TP_LR + FP_LR)
+print(sprintf("Precision = %f", precision_LR))
+
+recall_LR = TP_LR / (TP_LR + FN_LR)
+print(sprintf("Recall = %f", recall_LR))
+```
+
+```{r}
+confusion_mat_LDA <-
+	table(testing_data$Status, LDA_Test_Output)[2:1, 2:1]
+confusion_mat_LDA
+TP_LDA = confusion_mat_LDA[1]
+TN_LDA = confusion_mat_LDA[4]
+FP_LDA = confusion_mat_LDA[2]
+FN_LDA = confusion_mat_LDA[3]
+
+precision_LDA = TP_LDA / (TP_LDA + FP_LDA)
+print(sprintf("Precision = %f", precision_LDA))
+
+recall_LDA = TP_LDA / (TP_LDA + FN_LDA)
+print(sprintf("Recall = %f", recall_LDA))
+```
+
+If we go with precision and recall, we see that LDA has better recall but its precision is worse than LR.
+Even more interesting is the fact that the precision of the LDA is roughly its accuracy, but the accuracy of the LR is much, much worse. The LR might require some fine-tuning before I'd vouch for it to be publicly used. 
+
+
