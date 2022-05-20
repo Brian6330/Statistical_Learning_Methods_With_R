@@ -135,68 +135,160 @@ test_MSE_2
 ```
 
 
+```{r}
+plot(test_predictions_2, testing_data$birth_weight,
+     main="Difference prediction and observed values",
+     pch=20)
+abline(0,1)
+aMean <-  sqrt(mean((test_predictions_2 - testing_data$birth_weight)^2))
+abline(h = test_MSE_2, lty="dotted", col="red")
+```
+
+
 \newpage
 
-## 3. Compare the predictions you obtained with the logistic regression and LDA. Use a fair methodology to compare the classifiers (and explain your choice). Can you estimate the error rate for those strategies? Which classifier is the best? Why?
+## 4. Create a classification tree using the variable disease as a target. Plot the resulting model.
 
-Some stats for the LR model: 
-```{r}
-LR_Test_Output = predict(vert_df_LR, testing_data, type = "response")
-threshold = 0.5
-LR_Test_Results = as.factor(ifelse(LR_Test_Output < threshold, "Abnormal", "Normal"))
-LR_Correct_Pred = sum (testing_data$Status == LR_Test_Results)
-LR_Correct_Pred
-LR_Accuracy = LR_Correct_Pred / nrow(testing_data)
-LR_Accuracy
-```
-
-Stats for the LDA model: 
-```{r}
-LDA_Test_Output = predict(vert_df_LDA, testing_data, type = "response")$class
-LDA_Correct_Predictions = sum(testing_data$Status == LDA_Test_Output)
-LDA_Correct_Predictions
-LDA_Accuracy = LDA_Correct_Predictions/nrow(testing_data)
-LDA_Accuracy
-
-```
-
-The LDA has a way higher accuracy than the LR. Removing "Incidence" from the LR (or changing the threshold) might improve its performance, but in this case the LDA is the better choice.
-
-Alternatively we can also use the confusion matrix:
+First we will factorize disease (among others), and remove ID.
 
 ```{r}
-confusion_mat_LR <-
-	table(testing_data$Status, LR_Test_Results)[2:1, 2:1]
-confusion_mat_LR
-TP_LR = confusion_mat_LR[1]
-TN_LR = confusion_mat_LR[4]
-FP_LR = confusion_mat_LR[2]
-FN_LR = confusion_mat_LR[3]
+heart_df$disease <-
+	factor(
+		heart_df$disease,
+		levels = c(1, 2),
+		labels = c("A", "P")
+	)
 
-precision_LR = TP_LR / (TP_LR + FP_LR)
-print(sprintf("Precision = %f", precision_LR))
+heart_df$sex <-
+	factor(
+		heart_df$sex,
+		levels = c(0, 1),
+		labels = c("0", "1")
+	)
 
-recall_LR = TP_LR / (TP_LR + FN_LR)
-print(sprintf("Recall = %f", recall_LR))
+heart_df$sugar <-
+	factor(
+		heart_df$sugar,
+		levels = c(0, 1),
+		labels = c("0", "1")
+	)
+
+useful_heart <- heart_df[, -1]
+summary(useful_heart)
 ```
+
+Now we divide this into test (30%) and train (70%) data set:
 
 ```{r}
-confusion_mat_LDA <-
-	table(testing_data$Status, LDA_Test_Output)[2:1, 2:1]
-confusion_mat_LDA
-TP_LDA = confusion_mat_LDA[1]
-TN_LDA = confusion_mat_LDA[4]
-FP_LDA = confusion_mat_LDA[2]
-FN_LDA = confusion_mat_LDA[3]
-
-precision_LDA = TP_LDA / (TP_LDA + FP_LDA)
-print(sprintf("Precision = %f", precision_LDA))
-
-recall_LDA = TP_LDA / (TP_LDA + FN_LDA)
-print(sprintf("Recall = %f", recall_LDA))
+training_h = round(nrow(useful_heart) * 0.7)
+training_index_h = sample(c(1:nrow(useful_heart)), training_h)
+training_data_h = useful_heart[training_index_h,]
+summary(training_data_h)
+testing_data_h = useful_heart[-training_index_h,]
+summary(testing_data_h)
 ```
 
-If we go with precision and recall, we see that LDA has better recall but its precision is worse than LR.
-Even more interesting is the fact that the precision of the LDA is roughly its accuracy, but the accuracy of the LR is much, much worse. The LR might require some fine-tuning before I'd vouch for it to be publicly used. 
+
+Now we can perform the regression tree model:
+```{r}
+reg_tree_model_h <-
+	tree(as.factor(disease) ~ ., training_data_h, split = "deviance")
+summary(reg_tree_model_h)
+plot(reg_tree_model_h)
+text(reg_tree_model_h, pretty = 0, cex = 1.1)
+```
+
+\newpage
+
+## 5. Compute the confusion matrix for your model and calculate the accuracy, sensitivity and specificity. Describe the results you obtained.
+
+First we'll need to make some predictions:
+
+```{r}
+Test_Output = predict(reg_tree_model_h, testing_data_h, type = "class")
+Test_Error = mean(Test_Output != testing_data_h$disease)
+Test_Error
+```
 
 
+```{r}
+confusion_mat_h <-
+	table(testing_data_h$disease, Test_Output)[2:1, 2:1]
+confusion_mat_h
+TP = confusion_mat_h[1]
+TN = confusion_mat_h[4]
+FP = confusion_mat_h[2]
+FN = confusion_mat_h[3]
+
+precision = TP / (TP + FP)
+print(sprintf("Precision = %f", precision))
+
+recall = TP / (TP + FN)
+print(sprintf("Recall a.k.a. Sensitivity = %f", recall))
+
+specificity = TN / (FP + TN)
+print(sprintf("Specifcity = %f", specificity))
+
+
+F1 = (2 * recall * precision) / (recall + precision)
+print(sprintf("F1 measure = %f", F1))
+```
+
+
+
+## 6. Should your classification tree be pruned? If yes, which strategy would you use? Compare the previous results with the one obtained with the pruned tree. Plot the new model.
+
+Yes, definitely should be pruned.
+
+```{r}
+reg_tree_cv_p <- cv.tree(reg_tree_model_h, K = 10)
+reg_tree_cv_p
+
+dev_min_p = which(reg_tree_cv_p$dev == min(reg_tree_cv_p$dev))
+dev_min_size_p = reg_tree_cv_p$size[dev_min_p]
+plot(reg_tree_cv_p$size,
+		 reg_tree_cv_p$dev,
+		 main = "Deviance factor",
+		 type = "b")
+plot(reg_tree_cv_p)
+
+reg_tree_pruned_p <-  prune.tree(reg_tree_model_h, best = 4)
+summary(reg_tree_pruned_p)
+plot(reg_tree_pruned_p)
+text(reg_tree_pruned_p, pretty = 0)
+```
+
+Now for some predictions first:
+
+But first, some predictions:
+```{r}
+Test_Output_2 = predict(reg_tree_pruned_p, testing_data_h, type = "class")
+Test_Error_2 = mean(Test_Output_2 != testing_data_h$disease)
+Test_Error_2
+```
+
+
+```{r}
+confusion_mat_p <-
+	table(testing_data_h$disease, Test_Output_2)[2:1, 2:1]
+confusion_mat_p
+TP_p = confusion_mat_p[1]
+TN_p = confusion_mat_p[4]
+FP_p = confusion_mat_p[2]
+FN_p = confusion_mat_p[3]
+
+precision_p = TP_p / (TP_p + FP_p)
+print(sprintf("Precision = %f", precision_p))
+
+recall_p = TP_p / (TP_p + FN_p)
+print(sprintf("Recall a.k.a. Sensitivity = %f", recall_p))
+
+specificity_p = TN_p / (FP_p + TN_p)
+print(sprintf("Specifcity = %f", specificity_p))
+
+
+F1_p = (2 * recall_p * precision_p) / (recall_p + precision_p)
+print(sprintf("F1 measure = %f", F1_p))
+```
+
+Everything except recall has improved after the pruning.
