@@ -1,0 +1,165 @@
+---
+title: 'Exercise #10'
+author: "Brian Schweigler; 16-102-071"
+date: "24/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Principal Component Analysis
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+## Preliminaries
+Set a seed for later:
+```{r}
+set.seed(1786397)
+```
+
+
+Loading the Boston dataset, set CHAS as a factor and show an overview:
+
+```{r}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+boston_df = read.csv("Boston.txt", sep = " ", header = TRUE)
+boston_df$chas <-
+	factor(
+		boston_df$chas,
+		levels = c("0", "1"),
+		labels = c("0", "1")
+	)
+summary(boston_df)
+```
+
+No NAs; the range of the values can't be gauged without further information.
+
+R somehow already removed the IDs, thus we will not need to do this.
+
+
+## 1 Normalize your dataset and consider all the variables except MEDV. Create a PCA model and plot it.
+
+First we will normalize the dataset:
+
+```{r}
+normalize <- function(x) { 
+	mean_x = mean(x)
+  return ((x - mean_x) / sd(x))
+}
+
+boston_df_numeric = lapply(boston_df, as.numeric)
+boston_normalized = as.data.frame(lapply(boston_df_numeric[1:13], normalize))
+boston_normalized$medv = boston_df$medv
+summary(boston_normalized)
+```
+
+Now we can calculate the PCA:
+
+```{r}
+boston_pca <- princomp(boston_normalized[, -ncol(boston_normalized)], cor = TRUE)
+summary(boston_pca, loadings = T)
+plot(boston_pca)
+```
+
+As should be the case, component 1 has the highest impact. It is interesting how not all variables impact all the different components.
+
+\newpage
+
+## 2. Which predictor variable contributes the most to component 1? And which contributes the least?
+
+This is quite straightforward:
+
+```{r}
+comp1_max_contribution = max(abs(boston_pca$loadings[,1]))
+comp1_max_contribution
+max_row_name = which(abs(boston_pca$loadings[,1]) == comp1_max_contribution)
+max_row_name
+```
+So indus has the highest impact on PCA's component 1. 
+
+
+```{r}
+comp1_min_contribution = min(abs(boston_pca$loadings[,1]))
+comp1_min_contribution
+min.row.num = which(abs(boston_pca$loadings[,1]) == comp1_min_contribution)
+min.row.num
+```
+
+The smallest contribution to component 1 is from chas, but I am unsure if this is due to the factorizing or if it worked properly.
+
+
+With a biplot, we also see that indus has barely the largest contribution to comp 1 and chas the smallest.
+But of note is that CHAS has the largest contribution to component 2.
+```{r}
+biplot(boston_pca)
+```
+
+
+\newpage
+
+## 3. Estimate the proportion of variance explained by all the components. If we want to explain only 80% of the original data, how many components should we use?
+
+
+```{r}
+summary(boston_pca)
+```
+
+We need 5 of the components to boserve at least 80% of the variance in the data.
+
+In general, the standard deviation and proportional variation can be also seen as follows: 
+```{r}
+boston_pca$sdev
+var.proportion = (boston_pca$sdev)^2/sum((boston_pca$sdev)^2) 
+var.proportion
+```
+
+
+\newpage
+
+## 4. Generate a new dataset using only the components selected in Problem 3. Create a multiple regression model using these components as predictors for the target variable MEDV
+
+Now we divide this into test (30%) and train (70%) data set:
+```{r}
+# Generate the training and test sets
+boston_pca_data = data.frame(boston_pca$scores, medv = boston_df$medv)
+train_size = round(nrow(boston_pca_data)*0.7)
+train_index = sample( c(1: nrow(boston_pca_data)), train_size)
+boston_train = boston_pca_data[train_index,]
+boston_test = boston_pca_data[-train_index,]
+```
+
+
+Now we will only use the first 5 components:
+```{r}
+boston_small = boston_train[,c(1:5,13)] 
+pca_lm_small = lm(medv ~ ., data = boston_small)
+summary(pca_lm_small)
+
+MSE_train_lm_small = mean(pca_lm_small$residuals^2)
+print(sprintf("MSE Train Small = %f", MSE_train_lm_small))
+
+boston_small_prediction = predict(pca_lm_small, boston_test)
+MSE_test_lm_small = mean(boston_small_prediction^2)
+print(sprintf("MSE Test Small = %f", MSE_test_lm_small))
+```
+
+Test MSE is worse than Train MSE, so this is not a useful model.
+
+\newpage
+
+## 5. Compare the model created in Problem 4 with a multiple regression model using all the components
+
+Let's get to it: 
+
+```{r}
+pca_lm_full = lm(medv ~ ., data = boston_train)
+summary(pca_lm_full)
+MSE_train_lm_full = mean(pca_lm_full$residuals^2)
+print(sprintf("MSE Train Full = %f", MSE_train_lm_full))
+boston_full_prediction = predict(pca_lm_full, boston_test)
+MSE_test_lm_full = mean(boston_full_prediction^2)
+print(sprintf("MSE Test Full = %f", MSE_test_lm_full))
+```
+
+Welp, this model is also not all that useable. Slightly better perfromance than the small one, but still not all that useable in the real world.
+
+Nonetheless, the full model does not perform all that much better than the small one, which should be noted.
